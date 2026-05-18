@@ -49,4 +49,6 @@ Thumbs.db
 # =========================
 # Personal notes
 # =========================
-*.txt
+note.txt
+docker-note.txt
+git-note.txt
