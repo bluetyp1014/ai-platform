@@ -5,13 +5,18 @@ on:
 
 jobs:
   deploy:
-
     runs-on: self-hosted
 
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Create backend env
+        shell: powershell
+        run: |
+          @"
+          ${{ secrets.BACKEND_ENV }}
+          "@ | Out-File backend/.env.docker -Encoding utf8
 
       - name: Deploy
         shell: powershell
