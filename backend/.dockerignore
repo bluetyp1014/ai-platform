@@ -1,2 +1,28 @@
+# env
 .env
-.env.docker
+.env.*
+*.env
+
+# git
+.git
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+
+# venv
+.venv/
+venv/
+
+# cache
+.pytest_cache/
+
+# vscode
+.vscode/
+
+# uploads
+uploads/
+
+# logs
+*.log
