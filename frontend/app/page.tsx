@@ -21,14 +21,27 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          message: message,
-        }),
+        body: JSON.stringify({ message: message }),
       });
 
-      const data = await res.json();
+      if (!res.body) {
+        const data = await res.json();
+        setResponse(data.response || "");
+        setMessage("");
+        return;
+      }
 
-      setResponse(data.response);
+      setResponse("");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        setResponse((prev) => prev + chunk);
+      }
+
       setMessage("");
 
     } catch (err) {
