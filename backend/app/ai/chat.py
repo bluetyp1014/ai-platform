@@ -1,36 +1,28 @@
-import ollama
 import os
-ollama_client = ollama.Client(
-    host=os.getenv("OLLAMA_HOST")
-)
+
+import ollama
+
+ollama_client = ollama.Client(host=os.getenv("OLLAMA_HOST"))
 
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:12b")
 
-def ask_ai(message: str):
 
+def ask_ai(messages: list[dict]) -> str:
     response = ollama_client.chat(
         model=OLLAMA_MODEL,
-        messages=[
-            {
-                'role': 'user',
-                'content': message
-            }
-        ]
+        messages=messages,
     )
+    return response["message"]["content"]
 
-    return response['message']['content']
 
-
-def stream_ai(message: str, chunk_size: int = 128):
+def stream_ai(messages: list[dict], chunk_size: int = 128):
     """
-    Simple streaming generator that yields the AI response in chunks.
+    Yield the AI response in chunks.
 
-    Note: This implementation fetches the full response and then yields
-    it in slices. Replace with the LLM client's native streaming API
-    when available for token-level streaming.
+    Fetches the full response first, then slices for streaming.
+    Replace with the LLM client's native streaming when available.
     """
-
-    full = ask_ai(message)
+    full = ask_ai(messages)
     if not full:
         return
 
