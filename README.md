@@ -73,10 +73,25 @@ http://localhost:3003
 
 http://localhost:8003/docs
 
+---
+
+# Chat History
+
+對話會寫入 PostgreSQL（`conversations`、`messages`），重新整理頁面後會從 `localStorage` 還原目前的 `conversation_id` 並載入歷史訊息。
+
+| Method | Path | 說明 |
+|--------|------|------|
+| GET | `/conversations` | 列出所有對話 |
+| POST | `/conversations` | 建立新對話 |
+| GET | `/conversations/{id}/messages` | 取得訊息歷史 |
+| POST | `/chat` | 串流回覆（body: `message`, `conversation_id?`；header: `X-Conversation-Id`） |
+
+本機 DB 連線字串見 `backend/env.example`（Docker 內建於 `docker-compose.yml`）。
+
 # Roadmap
 
 - Streaming Chat Response
-- PostgreSQL Chat History
+- ~~PostgreSQL Chat History~~ ✓
 - JWT Authentication
 - RAG Knowledge Base
 - LangChain Integration
