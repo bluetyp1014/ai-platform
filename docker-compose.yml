@@ -23,6 +23,8 @@ services:
       POSTGRES_DB: ai_platform
     ports:
       - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -52,10 +54,5 @@ services:
     ports:
       - "6379:6379"
 
-  # ollama:
-  #   image: ollama/ollama
-  #   container_name: ai-ollama
-  #   volumes:
-  #     - D:/OllamaModels:/root/.ollama  # 這行就是「外面掛載儲存」
-  #   ports:
-  #     - "11434:11434"
+volumes:
+  postgres_data:
