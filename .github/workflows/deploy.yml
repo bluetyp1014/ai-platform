@@ -11,6 +11,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Create compose env
+        shell: powershell
+        run: |
+          @"
+          ${{ secrets.COMPOSE_ENV }}
+          "@ | Out-File .env -Encoding utf8 
+
       - name: Create backend env
         shell: powershell
         run: |

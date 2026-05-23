@@ -46,7 +46,7 @@ function PreWithCopy({ children, ...props }: ComponentProps<"pre">) {
       <pre
         ref={preRef}
         {...props}
-        className="hljs overflow-x-auto rounded-lg !p-4 !m-0 text-[0.8125rem] leading-relaxed"
+        className="hljs overflow-x-auto rounded-lg p-4! m-0! text-[0.8125rem] leading-relaxed"
       >
         {children}
       </pre>

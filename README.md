@@ -90,7 +90,7 @@ http://localhost:8003/docs
 
 # Roadmap
 
-- Streaming Chat Response
+- ~~Streaming Chat Response~~ ✓
 - ~~PostgreSQL Chat History~~ ✓
 - JWT Authentication
 - RAG Knowledge Base
