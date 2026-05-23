@@ -52,3 +52,5 @@ Thumbs.db
 note.txt
 docker-note.txt
 git-note.txt
+
+.env

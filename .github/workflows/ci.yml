@@ -55,6 +55,8 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Import test
+        env:
+          DATABASE_URL: sqlite://
         run: python -c "from app.main import app"
 
   docker:
