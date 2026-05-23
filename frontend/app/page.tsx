@@ -1,10 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MarkdownMessage } from "@/components/MarkdownMessage";
+import { useRouter } from "next/navigation";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8003";
-const STORAGE_KEY = "ai-platform-conversation-id";
+import { AuthGuard } from "@/components/AuthGuard";
+import { MarkdownMessage } from "@/components/MarkdownMessage";
+import { apiFetch } from "@/lib/api";
+import { useAuthStore } from "@/stores/authStore";
+
+function conversationStorageKey(username: string | null) {
+  return username
+    ? `ai-platform-conversation-id-${username}`
+    : "ai-platform-conversation-id";
+}
 
 type Conversation = {
   id: string;
@@ -70,7 +78,12 @@ function MessageBubble({
   );
 }
 
-export default function Home() {
+function ChatApp() {
+  const router = useRouter();
+  const username = useAuthStore((s) => s.username);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
+  const storageKey = conversationStorageKey(username);
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -89,13 +102,13 @@ export default function Home() {
   }, [messages, streaming]);
 
   const loadConversations = useCallback(async () => {
-    const res = await fetch(`${API_BASE}/conversations`);
+    const res = await apiFetch("/conversations");
     if (!res.ok) throw new Error("Failed to load conversations");
     return (await res.json()) as Conversation[];
   }, []);
 
   const loadMessages = useCallback(async (id: string) => {
-    const res = await fetch(`${API_BASE}/conversations/${id}/messages`);
+    const res = await apiFetch(`/conversations/${id}/messages`);
     if (!res.ok) throw new Error("Failed to load messages");
     return (await res.json()) as ChatMessage[];
   }, []);
@@ -109,7 +122,7 @@ export default function Home() {
         if (cancelled) return;
         setConversations(list);
 
-        const savedId = localStorage.getItem(STORAGE_KEY);
+        const savedId = localStorage.getItem(storageKey);
         if (savedId && list.some((c) => c.id === savedId)) {
           setConversationId(savedId);
           const history = await loadMessages(savedId);
@@ -122,15 +135,18 @@ export default function Home() {
       }
     }
 
+    setBootstrapping(true);
+    setConversationId(null);
+    setMessages([]);
     bootstrap();
     return () => {
       cancelled = true;
     };
-  }, [loadConversations, loadMessages]);
+  }, [loadConversations, loadMessages, storageKey]);
 
   const selectConversation = async (id: string) => {
     setConversationId(id);
-    localStorage.setItem(STORAGE_KEY, id);
+    localStorage.setItem(storageKey, id);
     setStreaming("");
     setLoading(true);
     try {
@@ -145,7 +161,7 @@ export default function Home() {
 
   const startNewChat = () => {
     setConversationId(null);
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(storageKey);
     setMessages([]);
     setStreaming("");
     setInput("");
@@ -156,9 +172,14 @@ export default function Home() {
     setConversations(list);
     if (activeId) {
       setConversationId(activeId);
-      localStorage.setItem(STORAGE_KEY, activeId);
+      localStorage.setItem(storageKey, activeId);
     }
   };
+
+  function handleLogout() {
+    clearAuth();
+    router.replace("/login");
+  }
 
   async function sendMessage() {
     const text = input.trim();
@@ -178,9 +199,8 @@ export default function Home() {
     setMessages((prev) => [...prev, optimisticUser]);
 
     try {
-      const res = await fetch(`${API_BASE}/chat`, {
+      const res = await apiFetch("/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
           conversation_id: conversationId,
@@ -194,7 +214,7 @@ export default function Home() {
       const newConversationId = res.headers.get("X-Conversation-Id");
       if (newConversationId) {
         setConversationId(newConversationId);
-        localStorage.setItem(STORAGE_KEY, newConversationId);
+        localStorage.setItem(storageKey, newConversationId);
       }
 
       if (!res.body) {
@@ -235,12 +255,24 @@ export default function Home() {
       <aside className="w-64 shrink-0 h-full border-r border-slate-700 flex flex-col overflow-hidden">
         <div className="shrink-0 p-4 border-b border-slate-700">
           <h1 className="text-lg font-bold">AI Platform</h1>
+          {username && (
+            <p className="text-xs text-slate-500 mt-1 truncate" title={username}>
+              {username}
+            </p>
+          )}
           <button
             type="button"
             onClick={startNewChat}
             className="mt-3 w-full rounded bg-slate-700 hover:bg-slate-600 px-3 py-2 text-sm"
           >
             + New Chat
+          </button>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="mt-2 w-full rounded border border-slate-600 hover:bg-slate-800 px-3 py-2 text-sm text-slate-300"
+          >
+            Log out
           </button>
         </div>
 
@@ -331,5 +363,13 @@ export default function Home() {
         </div>
       </section>
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <AuthGuard>
+      <ChatApp />
+    </AuthGuard>
   );
 }

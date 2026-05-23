@@ -57,6 +57,7 @@ jobs:
       - name: Import test
         env:
           DATABASE_URL: sqlite://
+          JWT_SECRET: ci-test-secret
         run: python -c "from app.main import app"
 
   docker:

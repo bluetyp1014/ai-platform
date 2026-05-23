@@ -8,11 +8,10 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class Conversation(SQLModel, table=True):
-    __tablename__ = "conversations"
+class User(SQLModel, table=True):
+    __tablename__ = "users"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    user_id: uuid.UUID = Field(foreign_key="users.id", index=True)
-    title: str = Field(default="New Chat", max_length=255)
+    username: str = Field(unique=True, index=True, max_length=64)
+    password_hash: str
     created_at: datetime = Field(default_factory=utc_now)
-    updated_at: datetime = Field(default_factory=utc_now)

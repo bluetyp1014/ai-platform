@@ -1,11 +1,11 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
+from app.core.deps import get_current_user, get_owned_conversation
 from app.db.engine import get_session
-from app.models import Conversation, Message
-from app.models.conversation import utc_now
+from app.models import Conversation, Message, User
 from app.schemas.conversation import (
     ConversationCreateResponse,
     ConversationRead,
@@ -16,14 +16,24 @@ router = APIRouter()
 
 
 @router.get("/conversations", response_model=list[ConversationRead])
-def list_conversations(session: Session = Depends(get_session)):
-    statement = select(Conversation).order_by(Conversation.updated_at.desc())
+def list_conversations(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    statement = (
+        select(Conversation)
+        .where(Conversation.user_id == current_user.id)
+        .order_by(Conversation.updated_at.desc())
+    )
     return session.exec(statement).all()
 
 
 @router.post("/conversations", response_model=ConversationCreateResponse)
-def create_conversation(session: Session = Depends(get_session)):
-    conversation = Conversation()
+def create_conversation(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    conversation = Conversation(user_id=current_user.id)
     session.add(conversation)
     session.commit()
     session.refresh(conversation)
@@ -37,10 +47,9 @@ def create_conversation(session: Session = Depends(get_session)):
 def get_messages(
     conversation_id: uuid.UUID,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
-    conversation = session.get(Conversation, conversation_id)
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+    get_owned_conversation(conversation_id, session, current_user)
 
     statement = (
         select(Message)
@@ -54,10 +63,9 @@ def get_messages(
 def delete_conversation(
     conversation_id: uuid.UUID,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
-    conversation = session.get(Conversation, conversation_id)
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+    conversation = get_owned_conversation(conversation_id, session, current_user)
 
     messages = session.exec(
         select(Message).where(Message.conversation_id == conversation_id)

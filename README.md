@@ -9,6 +9,8 @@
 - FastAPI Backend
 - Docker Compose 開發環境
 - 本機 Ollama 模型串接
+- JWT 登入／註冊（Access + Refresh Token）
+- 使用者專屬對話與聊天紀錄
 
 ---
 
@@ -18,13 +20,16 @@
 
 - Python 3.11
 - FastAPI
+- SQLModel / PostgreSQL
 - Ollama
+- JWT（python-jose + bcrypt）
 
 ## Frontend
 
 - Next.js
 - React
 - TypeScript
+- Zustand（auth state + localStorage persist）
 
 ## Infrastructure
 
@@ -45,7 +50,7 @@
 請先安裝：
 
 - Docker Desktop
-- Ollama 
+- Ollama
 
 並確認 Ollama service 已啟動。
 
@@ -67,6 +72,12 @@ docker compose up --build
 
 http://localhost:3003
 
+| 路徑 | 說明 |
+|------|------|
+| `/login` | 登入 |
+| `/register` | 註冊 |
+| `/` | 聊天（需登入） |
+
 ---
 
 # Backend Swagger
@@ -75,24 +86,99 @@ http://localhost:8003/docs
 
 ---
 
-# Chat History
+# Authentication (JWT)
 
-對話會寫入 PostgreSQL（`conversations`、`messages`），重新整理頁面後會從 `localStorage` 還原目前的 `conversation_id` 並載入歷史訊息。
+## 流程概覽
+
+1. **註冊／登入** → JSON 回傳 `access_token`；`refresh_token` 寫入 **HttpOnly Cookie**（`refresh_token`）。
+2. **Access token** 存於 `localStorage`（Zustand persist，key：`ai-platform-auth`），含 `username`。
+3. **API 請求** 帶 `Authorization: Bearer <access_token>`，且 `fetch` 使用 `credentials: "include"` 以送出 Cookie。
+4. **Access 過期或 localStorage 已清空** → 先 `restoreSession()`：以 Cookie 呼叫 `POST /auth/refresh` 換新 access；成功則留在原頁，失敗才導向 `/login`。
+5. **API 401** → 同樣先 refresh 再重試；仍失敗則登出並導向 `/login`。
+6. **登出** → `POST /auth/logout` 清除 Cookie 與 localStorage。
+
+## Auth API
+
+| Method | Path | 說明 | 需 Bearer |
+|--------|------|------|-----------|
+| POST | `/auth/register` | 註冊（body: `username`, `password`）；設定 refresh Cookie | 否 |
+| POST | `/auth/login` | 登入；設定 refresh Cookie | 否 |
+| POST | `/auth/refresh` | 以 Cookie 換新 access；輪替 refresh Cookie | 否 |
+| POST | `/auth/logout` | 清除 refresh Cookie | 否 |
+
+**JSON 回應範例（僅 access）：**
+
+```json
+{
+  "access_token": "...",
+  "token_type": "bearer"
+}
+```
+
+**Refresh Cookie（後端設定，前端不可讀）：** `HttpOnly`、`SameSite=none`、`Secure=false`（localhost 開發）；正式環境請改 `COOKIE_SECURE=true`。
+
+## 受保護的 API
+
+以下端點需 `Authorization: Bearer <access_token>`，且僅能存取**目前登入使用者**的資料：
 
 | Method | Path | 說明 |
 |--------|------|------|
-| GET | `/conversations` | 列出所有對話 |
+| GET | `/conversations` | 列出我的對話 |
 | POST | `/conversations` | 建立新對話 |
 | GET | `/conversations/{id}/messages` | 取得訊息歷史 |
+| DELETE | `/conversations/{id}` | 刪除對話 |
 | POST | `/chat` | 串流回覆（body: `message`, `conversation_id?`；header: `X-Conversation-Id`） |
 
+Access token 的 JWT payload 含 `type: "access"`；Refresh token 含 `type: "refresh"`，不可混用。
+
+## 後端環境變數
+
+見 `backend/env.example`，複製至 `backend/.env` 或 `backend/.env.docker`：
+
+| 變數 | 說明 | 建議 |
+|------|------|------|
+| `JWT_SECRET` | 簽章密鑰 | 正式環境務必更換 |
+| `JWT_ALGORITHM` | 演算法 | `HS256` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access 有效分鐘 | 例如 `30` |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh 有效天數 | 例如 `30` |
+| `REFRESH_COOKIE_NAME` | Cookie 名稱 | `refresh_token` |
+| `COOKIE_SECURE` | Cookie Secure 旗標 | 開發 `false`，正式 `true` |
+| `COOKIE_SAMESITE` | 跨埠需 `none`（配合 `allow_credentials`） | `none` |
+
+## 前端實作重點
+
+| 檔案 | 職責 |
+|------|------|
+| `frontend/stores/authStore.ts` | `accessToken`（localStorage）、`login` / `register` / `refreshAccessToken`（`credentials: "include"`） |
+| `frontend/lib/constants.ts` | `AUTH_STORAGE_KEY`、`REFRESH_TOKEN_COOKIE`（僅供對照，JS 無法讀取） |
+| `frontend/lib/api.ts` | 401 時自動 refresh 並重試 |
+| `frontend/components/AuthGuard.tsx` | 未登入導向 `/login` |
+
+對話 ID 依使用者分開儲存：`localStorage` key 為 `ai-platform-conversation-id-{username}`。
+
+## 資料庫
+
+- `users`：`id`, `username`, `password_hash`, `created_at`
+- `conversations`：含 `user_id`（FK → `users`）
+- `messages`：綁定 `conversation_id`
+
+若從舊版（無 `user_id`）升級，需重建或遷移 `conversations` / `messages` 表後再啟動 backend。
+
+---
+
+# Chat History
+
+對話會寫入 PostgreSQL（`conversations`、`messages`）。重新整理後會從 `localStorage` 還原目前使用者的 `conversation_id` 並載入歷史訊息。
+
 本機 DB 連線字串見 `backend/env.example`（Docker 內建於 `docker-compose.yml`）。
+
+---
 
 # Roadmap
 
 - ~~Streaming Chat Response~~ ✓
 - ~~PostgreSQL Chat History~~ ✓
-- JWT Authentication
+- ~~JWT Authentication（Access + Refresh）~~ ✓
 - RAG Knowledge Base
 - LangChain Integration
 - LangGraph Workflow

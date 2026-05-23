@@ -1,12 +1,13 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
 
 from app.ai.chat import stream_ai
+from app.core.deps import get_current_user, get_owned_conversation
 from app.db.engine import engine, get_session
-from app.models import Conversation, Message
+from app.models import Conversation, Message, User
 from app.models.conversation import utc_now
 from app.schemas.chat import ChatRequest
 
@@ -29,15 +30,22 @@ def _ollama_messages(history: list[Message], user_text: str) -> list[dict]:
 
 
 @router.post("/chat")
-def chat(data: ChatRequest, session: Session = Depends(get_session)):
+def chat(
+    data: ChatRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """Stream AI reply and persist user/assistant messages."""
 
     if data.conversation_id:
-        conversation = session.get(Conversation, data.conversation_id)
-        if not conversation:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+        conversation = get_owned_conversation(
+            data.conversation_id, session, current_user
+        )
     else:
-        conversation = Conversation(title=_title_from_message(data.message))
+        conversation = Conversation(
+            user_id=current_user.id,
+            title=_title_from_message(data.message),
+        )
         session.add(conversation)
         session.commit()
         session.refresh(conversation)

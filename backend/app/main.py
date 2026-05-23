@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import chat_api, conversations_api
+from app.api import auth_api, chat_api, conversations_api
 from app.db.engine import init_db
 
 
@@ -27,6 +27,7 @@ app.add_middleware(
     expose_headers=["X-Conversation-Id"],
 )
 
+app.include_router(auth_api.router)
 app.include_router(chat_api.router)
 app.include_router(conversations_api.router)
 
