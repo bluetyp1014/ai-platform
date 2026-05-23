@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { MarkdownMessage } from "@/components/MarkdownMessage";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8003";
 const STORAGE_KEY = "ai-platform-conversation-id";
@@ -19,6 +20,55 @@ type ChatMessage = {
   content: string;
   created_at: string;
 };
+
+function MessageBubble({
+  content,
+  role,
+}: {
+  content: string;
+  role: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const isUser = role === "user";
+
+  async function copyText() {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  return (
+    <div
+      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+    >
+      <div
+        className={`group relative max-w-[85%] rounded-lg px-4 py-3 pr-10 ${
+          isUser
+            ? "bg-sky-700 text-white whitespace-pre-wrap"
+            : "bg-slate-800 text-slate-100"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={copyText}
+          title="Copy message"
+          className={`absolute top-2 right-2 z-10 rounded px-1.5 py-0.5 text-xs opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 ${
+            isUser
+              ? "bg-sky-500/80 hover:bg-sky-400 text-white"
+              : "bg-slate-700 hover:bg-slate-600 text-slate-200"
+          }`}
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+        {isUser ? content : <MarkdownMessage content={content} />}
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -181,9 +231,9 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0f172a] text-slate-200 flex">
-      <aside className="w-64 shrink-0 border-r border-slate-700 flex flex-col">
-        <div className="p-4 border-b border-slate-700">
+    <main className="h-screen overflow-hidden bg-[#0f172a] text-slate-200 flex">
+      <aside className="w-64 shrink-0 h-full border-r border-slate-700 flex flex-col overflow-hidden">
+        <div className="shrink-0 p-4 border-b border-slate-700">
           <h1 className="text-lg font-bold">AI Platform</h1>
           <button
             type="button"
@@ -194,7 +244,7 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2 space-y-1">
           {bootstrapping && (
             <p className="text-slate-500 text-sm px-2 py-1">Loading…</p>
           )}
@@ -219,8 +269,8 @@ export default function Home() {
         </div>
       </aside>
 
-      <section className="flex-1 flex flex-col min-w-0">
-        <header className="px-6 py-4 border-b border-slate-700">
+      <section className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        <header className="shrink-0 px-6 py-4 border-b border-slate-700">
           <h2 className="text-xl font-semibold">
             {conversationId
               ? conversations.find((c) => c.id === conversationId)?.title ??
@@ -234,30 +284,17 @@ export default function Home() {
           )}
         </header>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4 space-y-4">
           {messages.map((m) => (
-            <div
+            <MessageBubble
               key={m.id}
-              className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`max-w-[80%] rounded-lg px-4 py-3 whitespace-pre-wrap ${
-                  m.role === "user"
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-800 text-slate-100"
-                }`}
-              >
-                {m.content}
-              </div>
-            </div>
+              role={m.role}
+              content={m.content}
+            />
           ))}
 
           {streaming && (
-            <div className="flex justify-start">
-              <div className="max-w-[80%] rounded-lg px-4 py-3 whitespace-pre-wrap bg-slate-800 text-slate-100">
-                {streaming}
-              </div>
-            </div>
+            <MessageBubble role="assistant" content={streaming} />
           )}
 
           {loading && !streaming && (
@@ -267,7 +304,7 @@ export default function Home() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-700">
+        <div className="shrink-0 px-6 py-4 border-t border-slate-700">
           <div className="flex gap-2">
             <input
               value={input}
