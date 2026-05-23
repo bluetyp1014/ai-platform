@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { MarkdownMessage } from "@/components/MarkdownMessage";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8003";
 const STORAGE_KEY = "ai-platform-conversation-id";
@@ -45,9 +46,9 @@ function MessageBubble({
       className={`flex ${isUser ? "justify-end" : "justify-start"}`}
     >
       <div
-        className={`group relative max-w-[80%] rounded-lg px-4 py-3 pr-10 whitespace-pre-wrap ${
+        className={`group relative max-w-[85%] rounded-lg px-4 py-3 pr-10 ${
           isUser
-            ? "bg-sky-700 text-white"
+            ? "bg-sky-700 text-white whitespace-pre-wrap"
             : "bg-slate-800 text-slate-100"
         }`}
       >
@@ -55,7 +56,7 @@ function MessageBubble({
           type="button"
           onClick={copyText}
           title="Copy message"
-          className={`absolute top-2 right-2 rounded px-1.5 py-0.5 text-xs opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 ${
+          className={`absolute top-2 right-2 z-10 rounded px-1.5 py-0.5 text-xs opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 ${
             isUser
               ? "bg-sky-500/80 hover:bg-sky-400 text-white"
               : "bg-slate-700 hover:bg-slate-600 text-slate-200"
@@ -63,7 +64,7 @@ function MessageBubble({
         >
           {copied ? "Copied" : "Copy"}
         </button>
-        {content}
+        {isUser ? content : <MarkdownMessage content={content} />}
       </div>
     </div>
   );
