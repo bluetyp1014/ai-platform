@@ -5,7 +5,11 @@ from sqlmodel import Session, select
 
 from app.core.deps import get_current_user, get_owned_conversation
 from app.db.engine import get_session
-from app.models import Conversation, Message, User
+from app.db.messages import (
+    delete_messages_by_conversation,
+    list_messages_by_conversation,
+)
+from app.models import Conversation, User
 from app.schemas.conversation import (
     ConversationCreateResponse,
     ConversationRead,
@@ -50,13 +54,7 @@ def get_messages(
     current_user: User = Depends(get_current_user),
 ):
     get_owned_conversation(conversation_id, session, current_user)
-
-    statement = (
-        select(Message)
-        .where(Message.conversation_id == conversation_id)
-        .order_by(Message.created_at.asc())
-    )
-    return session.exec(statement).all()
+    return list_messages_by_conversation(conversation_id)
 
 
 @router.delete("/conversations/{conversation_id}")
@@ -67,11 +65,7 @@ def delete_conversation(
 ):
     conversation = get_owned_conversation(conversation_id, session, current_user)
 
-    messages = session.exec(
-        select(Message).where(Message.conversation_id == conversation_id)
-    ).all()
-    for message in messages:
-        session.delete(message)
+    delete_messages_by_conversation(conversation_id)
 
     session.delete(conversation)
     session.commit()

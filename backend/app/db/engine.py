@@ -8,7 +8,7 @@ engine = create_engine(DATABASE_URL, echo=False)
 
 
 def init_db() -> None:
-    from app.models import Conversation, Message, User  # noqa: F401
+    from app.models import Conversation, User  # noqa: F401
 
     SQLModel.metadata.create_all(engine)
 

@@ -7,6 +7,11 @@ from sqlmodel import Session, select
 from app.ai.chat import stream_ai
 from app.core.deps import get_current_user, get_owned_conversation
 from app.db.engine import engine, get_session
+from app.db.messages import (
+    delete_messages_by_conversation,
+    insert_message,
+    list_messages_by_conversation,
+)
 from app.models import Conversation, Message, User
 from app.models.conversation import utc_now
 from app.schemas.chat import ChatRequest
@@ -50,18 +55,14 @@ def chat(
         session.commit()
         session.refresh(conversation)
 
-    history = session.exec(
-        select(Message)
-        .where(Message.conversation_id == conversation.id)
-        .order_by(Message.created_at.asc())
-    ).all()
+    history = list_messages_by_conversation(conversation.id)
 
     user_message = Message(
         conversation_id=conversation.id,
         role="user",
         content=data.message,
     )
-    session.add(user_message)
+    insert_message(user_message)
 
     if conversation.title == "New Chat":
         conversation.title = _title_from_message(data.message)
@@ -84,20 +85,19 @@ def chat(
             if not assistant_content:
                 return
 
-            with Session(engine) as save_session:
-                assistant_message = Message(
-                    conversation_id=conversation_id,
-                    role="assistant",
-                    content=assistant_content,
-                )
-                save_session.add(assistant_message)
+            assistant_message = Message(
+                conversation_id=conversation_id,
+                role="assistant",
+                content=assistant_content,
+            )
+            insert_message(assistant_message)
 
+            with Session(engine) as save_session:
                 conv = save_session.get(Conversation, conversation_id)
                 if conv:
                     conv.updated_at = utc_now()
                     save_session.add(conv)
-
-                save_session.commit()
+                    save_session.commit()
 
     headers = {"X-Conversation-Id": str(conversation_id)}
     return StreamingResponse(

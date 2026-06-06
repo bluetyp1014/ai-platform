@@ -4,4 +4,4 @@ export const API_BASE =
 export const AUTH_STORAGE_KEY = "ai-platform-auth";
 
 /** HttpOnly cookie name (set by backend; not readable from JS) */
-export const REFRESH_TOKEN_COOKIE = "refresh_token";
+export const REFRESH_TOKEN_COOKIE = "ai_platform_refresh_token";
