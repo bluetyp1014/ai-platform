@@ -4,14 +4,14 @@
 
 # Features
 
-- AI Chat API
-- Next.js Chat UI
-- FastAPI Backend
-- Docker Compose 開發環境
-- 本機 Ollama 模型串接
-- JWT 登入／註冊（Access + Refresh Token）
-- 使用者專屬對話與聊天紀錄
-- MongoDB Chat Log
+* AI Chat API
+* Next.js Chat UI
+* FastAPI Backend
+* Docker Compose 開發環境
+* 本機 Ollama 模型串接
+* JWT 登入／註冊（Access + Refresh Token）
+* 使用者專屬對話與聊天紀錄
+* MongoDB Chat Log
 
 ---
 
@@ -19,26 +19,26 @@
 
 ## Backend
 
-- Python 3.11
-- FastAPI
-- SQLModel / PostgreSQL
-- MongoDB (PyMongo)
-- Ollama
-- JWT（python-jose + bcrypt）
+* Python 3.11
+* FastAPI
+* SQLModel / PostgreSQL
+* MongoDB (PyMongo)
+* Ollama
+* JWT（python-jose + bcrypt）
 
 ## Frontend
 
-- Next.js
-- React
-- TypeScript
-- Zustand（auth state + localStorage persist）
+* Next.js
+* React
+* TypeScript
+* Zustand（auth state + localStorage persist）
 
 ## Infrastructure
 
-- Docker
-- PostgreSQL
-- MongoDB
-- Redis
+* Docker
+* PostgreSQL
+* MongoDB
+* Redis
 
 ---
 
@@ -52,8 +52,8 @@
 
 請先安裝：
 
-- Docker Desktop
-- Ollama
+* Docker Desktop
+* Ollama
 
 並確認 Ollama service 已啟動。
 
@@ -75,11 +75,11 @@ docker compose up --build
 
 http://localhost:3003
 
-| 路徑 | 說明 |
-|------|------|
-| `/login` | 登入 |
-| `/register` | 註冊 |
-| `/` | 聊天（需登入） |
+| 路徑          | 說明      |
+| ----------- | ------- |
+| `/login`    | 登入      |
+| `/register` | 註冊      |
+| `/`         | 聊天（需登入） |
 
 ---
 
@@ -102,12 +102,12 @@ http://localhost:8003/docs
 
 ## Auth API
 
-| Method | Path | 說明 | 需 Bearer |
-|--------|------|------|-----------|
-| POST | `/auth/register` | 註冊（body: `username`, `password`）；設定 refresh Cookie | 否 |
-| POST | `/auth/login` | 登入；設定 refresh Cookie | 否 |
-| POST | `/auth/refresh` | 以 Cookie 換新 access；輪替 refresh Cookie | 否 |
-| POST | `/auth/logout` | 清除 refresh Cookie | 否 |
+| Method | Path             | 說明                                                 | 需 Bearer |
+| ------ | ---------------- | -------------------------------------------------- | -------- |
+| POST   | `/auth/register` | 註冊（body: `username`, `password`）；設定 refresh Cookie | 否        |
+| POST   | `/auth/login`    | 登入；設定 refresh Cookie                               | 否        |
+| POST   | `/auth/refresh`  | 以 Cookie 換新 access；輪替 refresh Cookie               | 否        |
+| POST   | `/auth/logout`   | 清除 refresh Cookie                                  | 否        |
 
 **JSON 回應範例（僅 access）：**
 
@@ -118,54 +118,67 @@ http://localhost:8003/docs
 }
 ```
 
-**Refresh Cookie（後端設定，前端不可讀）：** `HttpOnly`、`SameSite=none`、`Secure=false`（localhost 開發）；正式環境請改 `COOKIE_SECURE=true`。
+**Refresh Cookie（後端設定，前端不可讀）：**
+
+* HttpOnly
+* SameSite=none
+* Secure=false（localhost 開發）
+
+正式環境請改：
+
+```env
+COOKIE_SECURE=true
+```
+
+---
 
 ## 受保護的 API
 
-以下端點需 `Authorization: Bearer <access_token>`，且僅能存取**目前登入使用者**的資料：
+以下端點需 `Authorization: Bearer <access_token>`，且僅能存取目前登入使用者的資料：
 
-| Method | Path | 說明 |
-|--------|------|------|
-| GET | `/conversations` | 列出我的對話 |
-| POST | `/conversations` | 建立新對話 |
-| GET | `/conversations/{id}/messages` | 取得訊息歷史 |
-| DELETE | `/conversations/{id}` | 刪除對話 |
-| POST | `/chat` | 串流回覆（body: `message`, `conversation_id?`；header: `X-Conversation-Id`） |
+| Method | Path                           | 說明     |
+| ------ | ------------------------------ | ------ |
+| GET    | `/conversations`               | 列出我的對話 |
+| POST   | `/conversations`               | 建立新對話  |
+| GET    | `/conversations/{id}/messages` | 取得訊息歷史 |
+| DELETE | `/conversations/{id}`          | 刪除對話   |
+| POST   | `/chat`                        | 串流回覆   |
 
-Access token 的 JWT payload 含 `type: "access"`；Refresh token 含 `type: "refresh"`，不可混用。
+Access token 的 JWT payload 含：
+
+```json
+{
+  "type": "access"
+}
+```
+
+Refresh token 含：
+
+```json
+{
+  "type": "refresh"
+}
+```
+
+不可混用。
+
+---
 
 ## 後端環境變數
 
-見 `backend/env.example`，複製至 `backend/.env` 或 `backend/.env.docker`：
+見 `backend/env.example`。
 
-| 變數 | 說明 | 建議 |
-|------|------|------|
-| `JWT_SECRET` | 簽章密鑰 | 正式環境務必更換 |
-| `JWT_ALGORITHM` | 演算法 | `HS256` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access 有效分鐘 | 例如 `30` |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh 有效天數 | 例如 `30` |
-| `REFRESH_COOKIE_NAME` | Cookie 名稱 | `refresh_token` |
-| `COOKIE_SECURE` | Cookie Secure 旗標 | 開發 `false`，正式 `true` |
-| `COOKIE_SAMESITE` | 跨埠需 `none`（配合 `allow_credentials`） | `none` |
-
-## 前端實作重點
-
-| 檔案 | 職責 |
-|------|------|
-| `frontend/stores/authStore.ts` | `accessToken`（localStorage）、`login` / `register` / `refreshAccessToken`（`credentials: "include"`） |
-| `frontend/lib/constants.ts` | `AUTH_STORAGE_KEY`、`REFRESH_TOKEN_COOKIE`（僅供對照，JS 無法讀取） |
-| `frontend/lib/api.ts` | 401 時自動 refresh 並重試 |
-| `frontend/components/AuthGuard.tsx` | 未登入導向 `/login` |
-
-對話 ID 依使用者分開儲存：`localStorage` key 為 `ai-platform-conversation-id-{username}`。
-
-## 資料庫
-
-- `users`：`id`, `username`, `password_hash`, `created_at`
-- `conversations`：含 `user_id`（FK → `users`）
-- `messages`：綁定 `conversation_id`
-
-若從舊版（無 `user_id`）升級，需重建或遷移 `conversations` / `messages` 表後再啟動 backend。
+| 變數                          | 說明                        |
+| --------------------------- | ------------------------- |
+| JWT_SECRET                  | JWT 簽章密鑰                  |
+| JWT_ALGORITHM               | JWT 演算法                   |
+| ACCESS_TOKEN_EXPIRE_MINUTES | Access Token 有效時間         |
+| REFRESH_TOKEN_EXPIRE_DAYS   | Refresh Token 有效天數        |
+| REFRESH_COOKIE_NAME         | Refresh Cookie 名稱         |
+| COOKIE_SECURE               | Cookie Secure 旗標          |
+| COOKIE_SAMESITE             | Cookie SameSite 設定        |
+| MONGODB_URL                 | MongoDB Connection String |
+| MONGODB_DB                  | MongoDB Database Name     |
 
 ---
 
@@ -177,16 +190,16 @@ Access token 的 JWT payload 含 `type: "access"`；Refresh token 含 `type: "re
 
 儲存核心關聯資料：
 
-- users
-- conversations
+* users
+* conversations
 
 ## MongoDB
 
 儲存聊天紀錄：
 
-- chat_logs
+* chat_logs
 
-每筆訊息會以 Document 形式儲存：
+每筆訊息以 Document 形式儲存：
 
 ```json
 {
@@ -196,19 +209,29 @@ Access token 的 JWT payload 含 `type: "access"`；Refresh token 含 `type: "re
   "content": "Hello",
   "created_at": "2026-06-06T12:00:00"
 }
+```
+
+MongoDB 適合儲存：
+
+* Chat History
+* Agent Execution Logs
+* 非結構化資料
+* 大量 JSON 文件
 
 ---
 
 # Roadmap
 
-- ~~Streaming Chat Response~~ ✓
-- ~~PostgreSQL Chat History~~ ✓
-- ~~MongoDB Chat Log~~ ✓
-- ~~JWT Authentication（Access + Refresh）~~ ✓
-- RAG Knowledge Base
-- LangChain Integration
-- LangGraph Workflow
-- AI Agent System
+* ~~Streaming Chat Response~~ ✓
+* ~~PostgreSQL Chat History~~ ✓
+* ~~MongoDB Chat Log~~ ✓
+* ~~JWT Authentication（Access + Refresh）~~ ✓
+* RAG Knowledge Base
+* LangChain Integration
+* LangGraph Workflow
+* AI Agent System
+
+---
 
 # Architecture
 
@@ -231,3 +254,4 @@ FastAPI
     │
     └── Ollama
             └── Local LLM
+```
