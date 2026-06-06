@@ -5,11 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth_api, chat_api, conversations_api
 from app.db.engine import init_db
+from app.db.mongo import init_mongo
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    init_mongo()
     yield
 
 

@@ -11,6 +11,7 @@
 - 本機 Ollama 模型串接
 - JWT 登入／註冊（Access + Refresh Token）
 - 使用者專屬對話與聊天紀錄
+- MongoDB Chat Log
 
 ---
 
@@ -21,6 +22,7 @@
 - Python 3.11
 - FastAPI
 - SQLModel / PostgreSQL
+- MongoDB (PyMongo)
 - Ollama
 - JWT（python-jose + bcrypt）
 
@@ -35,6 +37,7 @@
 
 - Docker
 - PostgreSQL
+- MongoDB
 - Redis
 
 ---
@@ -168,9 +171,31 @@ Access token 的 JWT payload 含 `type: "access"`；Refresh token 含 `type: "re
 
 # Chat History
 
-對話會寫入 PostgreSQL（`conversations`、`messages`）。重新整理後會從 `localStorage` 還原目前使用者的 `conversation_id` 並載入歷史訊息。
+本專案採用 PostgreSQL + MongoDB 混合儲存架構。
 
-本機 DB 連線字串見 `backend/env.example`（Docker 內建於 `docker-compose.yml`）。
+## PostgreSQL
+
+儲存核心關聯資料：
+
+- users
+- conversations
+
+## MongoDB
+
+儲存聊天紀錄：
+
+- chat_logs
+
+每筆訊息會以 Document 形式儲存：
+
+```json
+{
+  "conversation_id": "xxxx",
+  "user_id": 1,
+  "role": "user",
+  "content": "Hello",
+  "created_at": "2026-06-06T12:00:00"
+}
 
 ---
 
@@ -178,8 +203,31 @@ Access token 的 JWT payload 含 `type: "access"`；Refresh token 含 `type: "re
 
 - ~~Streaming Chat Response~~ ✓
 - ~~PostgreSQL Chat History~~ ✓
+- ~~MongoDB Chat Log~~ ✓
 - ~~JWT Authentication（Access + Refresh）~~ ✓
 - RAG Knowledge Base
 - LangChain Integration
 - LangGraph Workflow
 - AI Agent System
+
+# Architecture
+
+```text
+Next.js
+    │
+    ▼
+FastAPI
+    │
+    ├── PostgreSQL
+    │       ├── Users
+    │       └── Conversations
+    │
+    ├── MongoDB
+    │       ├── Chat Logs
+    │       └── Agent Logs
+    │
+    ├── Redis
+    │       └── Cache / Session
+    │
+    └── Ollama
+            └── Local LLM
