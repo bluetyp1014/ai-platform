@@ -4,11 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from jose import JWTError
 from sqlmodel import Session, select
 
+from app.core.config import DEMO_ADMIN_USERNAME
 from app.core.cookies import (
     clear_refresh_cookie,
     get_refresh_token_from_cookie,
     set_refresh_cookie,
 )
+from app.core.demo_mode import is_demo_closed
 from app.core.security import (
     TOKEN_TYPE_REFRESH,
     create_token_pair,
@@ -23,6 +25,19 @@ from app.schemas.auth import AccessTokenResponse, LoginRequest, RegisterRequest
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _ensure_demo_auth_allowed(username: str | None = None) -> None:
+    if not is_demo_closed():
+        return
+
+    if DEMO_ADMIN_USERNAME and username == DEMO_ADMIN_USERNAME:
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Demo is closed",
+    )
+
+
 def _issue_tokens(user: User, response: Response) -> AccessTokenResponse:
     access_token, refresh_token = create_token_pair(str(user.id))
     set_refresh_cookie(response, refresh_token)
@@ -35,6 +50,8 @@ def register(
     response: Response,
     session: Session = Depends(get_session),
 ):
+    _ensure_demo_auth_allowed()
+
     existing = session.exec(
         select(User).where(User.username == data.username)
     ).first()
@@ -61,6 +78,8 @@ def login(
     response: Response,
     session: Session = Depends(get_session),
 ):
+    _ensure_demo_auth_allowed(data.username)
+
     user = session.exec(
         select(User).where(User.username == data.username)
     ).first()

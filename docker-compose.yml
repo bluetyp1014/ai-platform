@@ -6,6 +6,7 @@ services:
     ports:
       - "3003:3000"
     environment:
+      - ALLOWED_DEV_ORIGINS=${ALLOWED_DEV_ORIGINS}
       - WATCHPACK_POLLING=true  
       - CHOKIDAR_USEPOLLING=true
     volumes:
@@ -34,18 +35,24 @@ services:
   mongodb:
     image: mongo:8
     container_name: mongodb
-
     restart: unless-stopped
-
+    command: ["mongod", "--auth"]
     ports:
-      - "27017:27017"
-
+      - "127.0.0.1:27017:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
-
     volumes:
       - mongodb_data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --eval 'db.adminCommand({ ping: 1 })' || exit 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 
   backend:
@@ -61,7 +68,7 @@ services:
       postgres:
         condition: service_healthy
       mongodb:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_started
 

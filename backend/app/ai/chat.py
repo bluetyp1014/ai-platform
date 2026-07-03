@@ -1,4 +1,6 @@
 import os
+from collections.abc import Iterator
+from typing import Any
 
 import ollama
 
@@ -15,16 +17,34 @@ def ask_ai(messages: list[dict]) -> str:
     return response["message"]["content"]
 
 
-def stream_ai(messages: list[dict], chunk_size: int = 128):
-    """
-    Yield the AI response in chunks.
+def _extract_chunk_text(chunk: Any) -> str:
+    message_obj = getattr(chunk, "message", None)
+    content_obj = getattr(message_obj, "content", None)
+    if isinstance(content_obj, str):
+        return content_obj
 
-    Fetches the full response first, then slices for streaming.
-    Replace with the LLM client's native streaming when available.
-    """
-    full = ask_ai(messages)
-    if not full:
-        return
+    if not isinstance(chunk, dict):
+        return ""
 
-    for i in range(0, len(full), chunk_size):
-        yield full[i : i + chunk_size]
+    message = chunk.get("message")
+    if isinstance(message, dict):
+        content = message.get("content")
+        if isinstance(content, str):
+            return content
+
+    response = chunk.get("response")
+    return response if isinstance(response, str) else ""
+
+
+def stream_ai(messages: list[dict]) -> Iterator[str]:
+    """Yield model output as true streaming chunks."""
+    stream = ollama_client.chat(
+        model=OLLAMA_MODEL,
+        messages=messages,
+        stream=True,
+    )
+
+    for chunk in stream:
+        text = _extract_chunk_text(chunk)
+        if text:
+            yield text

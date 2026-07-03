@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-
 import { AuthGuard } from "@/components/AuthGuard";
 import { MarkdownMessage } from "@/components/MarkdownMessage";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+
+import { DemoClosedView } from "../components/DemoClosedView";
 
 function conversationStorageKey(username: string | null) {
   return username
@@ -79,7 +79,6 @@ function MessageBubble({
 }
 
 function ChatApp() {
-  const router = useRouter();
   const username = useAuthStore((s) => s.username);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const storageKey = conversationStorageKey(username);
@@ -91,6 +90,9 @@ function ChatApp() {
   const [streaming, setStreaming] = useState("");
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
+  const [demoClosed, setDemoClosed] = useState(false);
+  const [closingDemo, setClosingDemo] = useState(false);
+  const [canCloseDemo, setCanCloseDemo] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -107,6 +109,19 @@ function ChatApp() {
     return (await res.json()) as Conversation[];
   }, []);
 
+  const loadDemoStatus = useCallback(async () => {
+    const res = await fetch("/api/admin/demo-status", {
+      credentials: "include",
+      headers: useAuthStore.getState().accessToken
+        ? {
+            Authorization: `Bearer ${useAuthStore.getState().accessToken}`,
+          }
+        : undefined,
+    });
+    if (!res.ok) throw new Error("Failed to load demo status");
+    return (await res.json()) as { closed?: boolean; can_close?: boolean };
+  }, []);
+
   const loadMessages = useCallback(async (id: string) => {
     const res = await apiFetch(`/conversations/${id}/messages`);
     if (!res.ok) throw new Error("Failed to load messages");
@@ -118,6 +133,11 @@ function ChatApp() {
 
     async function bootstrap() {
       try {
+        const status = await loadDemoStatus();
+        if (cancelled) return;
+        setDemoClosed(Boolean(status.closed));
+        setCanCloseDemo(Boolean(status.can_close));
+
         const list = await loadConversations();
         if (cancelled) return;
         setConversations(list);
@@ -142,7 +162,7 @@ function ChatApp() {
     return () => {
       cancelled = true;
     };
-  }, [loadConversations, loadMessages, storageKey]);
+  }, [loadConversations, loadDemoStatus, loadMessages, storageKey]);
 
   const selectConversation = async (id: string) => {
     setConversationId(id);
@@ -176,14 +196,51 @@ function ChatApp() {
     }
   };
 
-  function handleLogout() {
-    clearAuth();
-    router.replace("/login");
+  async function handleLogout() {
+    await clearAuth();
+    window.location.href = "/login";
+  }
+
+  async function handleCloseDemo() {
+    if (!canCloseDemo || closingDemo) return;
+
+    const nextClosedState = !demoClosed;
+    const confirmed = window.confirm(
+      nextClosedState
+        ? "Close the public demo now? External visitors will only see the closed page."
+        : "Re-open the public demo now? External visitors will be able to access the site again."
+    );
+    if (!confirmed) return;
+
+    setClosingDemo(true);
+    try {
+      const res = await apiFetch(
+        nextClosedState ? "/admin/demo-close" : "/admin/demo-open",
+        { method: "POST" }
+      );
+      if (!res.ok) {
+        throw new Error(
+          nextClosedState ? "Failed to close demo" : "Failed to open demo"
+        );
+      }
+
+      setDemoClosed(nextClosedState);
+
+      if (nextClosedState) {
+        await clearAuth();
+        window.location.href = "/login";
+      }
+    } catch (err) {
+      console.error(err);
+      window.alert(nextClosedState ? "Failed to close demo." : "Failed to open demo.");
+    } finally {
+      setClosingDemo(false);
+    }
   }
 
   async function sendMessage() {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || loading || demoClosed) return;
 
     setInput("");
     setLoading(true);
@@ -197,6 +254,9 @@ function ChatApp() {
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, optimisticUser]);
+
+    let latestConversationId: string | null = conversationId;
+    let streamedText = "";
 
     try {
       const res = await apiFetch("/chat", {
@@ -213,6 +273,7 @@ function ChatApp() {
 
       const newConversationId = res.headers.get("X-Conversation-Id");
       if (newConversationId) {
+        latestConversationId = newConversationId;
         setConversationId(newConversationId);
         localStorage.setItem(storageKey, newConversationId);
       }
@@ -225,18 +286,17 @@ function ChatApp() {
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let accumulated = "";
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
-        accumulated += chunk;
-        setStreaming(accumulated);
+        streamedText += chunk;
+        setStreaming(streamedText);
       }
 
       setStreaming("");
-      const activeId = newConversationId ?? conversationId;
+      const activeId = latestConversationId;
       if (activeId) {
         const history = await loadMessages(activeId);
         setMessages(history);
@@ -244,10 +304,27 @@ function ChatApp() {
       }
     } catch (err) {
       console.error(err);
-      setMessages((prev) => prev.filter((m) => m.id !== optimisticUser.id));
+      if (latestConversationId) {
+        try {
+          const history = await loadMessages(latestConversationId);
+          setMessages(history);
+          setStreaming("");
+          await refreshSidebar(latestConversationId);
+        } catch {
+          setMessages((prev) => prev.filter((m) => m.id !== optimisticUser.id));
+          setStreaming("");
+        }
+      } else {
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticUser.id));
+        setStreaming("");
+      }
     } finally {
       setLoading(false);
     }
+  }
+
+  if (demoClosed && !canCloseDemo) {
+    return <DemoClosedView />;
   }
 
   return (
@@ -274,6 +351,26 @@ function ChatApp() {
           >
             Log out
           </button>
+          {canCloseDemo && (
+            <button
+              type="button"
+              onClick={handleCloseDemo}
+              disabled={closingDemo}
+              className={`mt-2 w-full rounded border disabled:opacity-50 px-3 py-2 text-sm ${
+                demoClosed
+                  ? "border-emerald-700 bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-200"
+                  : "border-red-700 bg-red-950/40 hover:bg-red-900/50 text-red-200"
+              }`}
+            >
+              {closingDemo
+                ? demoClosed
+                  ? "Opening demo…"
+                  : "Closing demo…"
+                : demoClosed
+                  ? "Re-open Public Demo"
+                  : "Close Public Demo"}
+            </button>
+          )}
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2 space-y-1">
@@ -348,13 +445,13 @@ function ChatApp() {
                 }
               }}
               placeholder="Type a message…"
-              disabled={loading}
+              disabled={loading || demoClosed}
               className="flex-1 rounded border border-slate-600 bg-slate-900 px-4 py-2 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <button
               type="button"
               onClick={sendMessage}
-              disabled={loading || !input.trim()}
+              disabled={loading || demoClosed || !input.trim()}
               className="rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 px-5 py-2 font-medium"
             >
               Send
