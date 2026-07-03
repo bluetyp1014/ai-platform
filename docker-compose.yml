@@ -4,7 +4,7 @@ services:
     build: ./frontend
     container_name: ai-frontend
     ports:
-      - "3003:3000"
+      - "127.0.0.1:3003:3000"
     environment:
       - ALLOWED_DEV_ORIGINS=${ALLOWED_DEV_ORIGINS}
       - WATCHPACK_POLLING=true  
@@ -59,7 +59,7 @@ services:
     build: ./backend
     container_name: ai-api
     ports:
-      - "8003:8000"
+      - "127.0.0.1:8003:8000"
     env_file:
       - ./backend/.env.docker
     volumes:
@@ -76,7 +76,7 @@ services:
     image: redis:7
     container_name: ai-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
 volumes:
   postgres_data:  
