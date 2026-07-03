@@ -25,6 +25,13 @@ jobs:
           ${{ secrets.BACKEND_ENV }}
           "@ | Out-File backend/.env.docker -Encoding utf8
 
+      - name: Create frontend env
+        shell: powershell
+        run: |
+          @"
+          ${{ secrets.FRONTEND_ENV }}
+          "@ | Out-File frontend/.env -Encoding utf8    
+
       - name: Deploy
         shell: powershell
         run: |
