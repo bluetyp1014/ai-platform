@@ -21,3 +21,9 @@ REFRESH_COOKIE_NAME = os.getenv("REFRESH_COOKIE_NAME", "ai_platform_refresh_toke
 COOKIE_PATH = os.getenv("COOKIE_PATH", "/")
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "none")
+
+DEMO_ADMIN_USERNAME = os.getenv("DEMO_ADMIN_USERNAME")
+DEMO_CLOSED_FLAG_PATH = os.getenv(
+    "DEMO_CLOSED_FLAG_PATH",
+    "/app/runtime/demo_closed.flag",
+)

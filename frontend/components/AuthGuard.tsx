@@ -33,7 +33,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!accessToken) {
-    return null;
+    return (
+      <div className="min-h-screen bg-[#0f172a] text-slate-400 flex items-center justify-center">
+        Redirecting…
+      </div>
+    );
   }
 
   return <>{children}</>;

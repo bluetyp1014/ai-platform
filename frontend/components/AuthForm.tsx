@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
+import { API_BASE } from "@/lib/constants";
 import { useAuthStore } from "@/stores/authStore";
+
+import { DemoClosedView } from "./DemoClosedView";
 
 type AuthFormProps = {
   mode: "login" | "register";
@@ -23,6 +26,9 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [demoClosed, setDemoClosed] = useState(false);
+  const [demoStatusReady, setDemoStatusReady] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
 
   const isLogin = mode === "login";
 
@@ -33,12 +39,44 @@ export function AuthForm({ mode }: AuthFormProps) {
   }, [hasHydrated, sessionReady, restoreSession]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadDemoStatus() {
+      try {
+        const res = await fetch(`${API_BASE}/admin/demo-status`, {
+          credentials: "include",
+        });
+        if (!res.ok) {
+          throw new Error("Failed to load demo status");
+        }
+
+        const data = (await res.json()) as { closed?: boolean };
+        if (!cancelled) {
+          setDemoClosed(Boolean(data.closed));
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (!cancelled) {
+          setDemoStatusReady(true);
+        }
+      }
+    }
+
+    void loadDemoStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (sessionReady && accessToken) {
       router.replace("/");
     }
   }, [sessionReady, accessToken, router]);
 
-  if (!hasHydrated || !sessionReady) {
+  if (!hasHydrated || !sessionReady || !demoStatusReady) {
     return (
       <div className="min-h-screen bg-[#0f172a] text-slate-400 flex items-center justify-center">
         Loading…
@@ -46,8 +84,29 @@ export function AuthForm({ mode }: AuthFormProps) {
     );
   }
 
+  if (demoClosed && !showAdminLogin) {
+    return (
+      <div>
+        <DemoClosedView />
+        <div className="fixed inset-x-0 bottom-8 flex justify-center px-4">
+          <button
+            type="button"
+            onClick={() => setShowAdminLogin(true)}
+            className="rounded border border-slate-600 bg-slate-900/90 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+          >
+            Admin Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (accessToken) {
-    return null;
+    return (
+      <div className="min-h-screen bg-[#0f172a] text-slate-400 flex items-center justify-center">
+        Redirecting…
+      </div>
+    );
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -140,6 +199,12 @@ export function AuthForm({ mode }: AuthFormProps) {
                 ? "Sign in"
                 : "Register"}
           </button>
+
+          {demoClosed && (
+            <p className="text-sm text-amber-300 bg-amber-950/40 rounded px-3 py-2">
+              Demo mode is closed. Only the configured admin account can sign in.
+            </p>
+          )}
         </form>
 
         <p className="text-center text-sm text-slate-400 mt-6">

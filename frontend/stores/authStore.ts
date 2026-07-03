@@ -3,6 +3,8 @@ import { persist } from "zustand/middleware";
 
 import { API_BASE, AUTH_STORAGE_KEY } from "@/lib/constants";
 
+const SESSION_RESTORE_TIMEOUT_MS = 8000;
+
 export type AccessTokenResponse = {
   access_token: string;
   token_type: string;
@@ -14,7 +16,7 @@ type AuthState = {
   _hasHydrated: boolean;
   _sessionReady: boolean;
   setAccessToken: (accessToken: string, username?: string) => void;
-  clearAuth: () => void;
+  clearAuth: () => Promise<void>;
   setHasHydrated: (value: boolean) => void;
   refreshAccessToken: () => Promise<boolean>;
   restoreSession: () => Promise<boolean>;
@@ -52,18 +54,22 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       accessToken: null,
       username: null,
-      _hasHydrated: false,
+      _hasHydrated: true,
       _sessionReady: false,
       setAccessToken: (accessToken, username) =>
         set({
           accessToken,
           ...(username !== undefined ? { username } : {}),
         }),
-      clearAuth: () => {
-        void fetch(`${API_BASE}/auth/logout`, {
-          ...authFetchInit,
-          method: "POST",
-        });
+      clearAuth: async () => {
+        try {
+          await fetch(`${API_BASE}/auth/logout`, {
+            ...authFetchInit,
+            method: "POST",
+          });
+        } catch {
+          // Best-effort logout; still clear local session.
+        }
         set({ accessToken: null, username: null, _sessionReady: true });
       },
       setHasHydrated: (value) => set({ _hasHydrated: value }),
@@ -88,7 +94,12 @@ export const useAuthStore = create<AuthState>()(
             return true;
           }
 
-          const ok = await get().refreshAccessToken();
+          const ok = await Promise.race([
+            get().refreshAccessToken(),
+            new Promise<boolean>((resolve) => {
+              setTimeout(() => resolve(false), SESSION_RESTORE_TIMEOUT_MS);
+            }),
+          ]);
           set({ _sessionReady: true });
           return ok;
         })().finally(() => {
