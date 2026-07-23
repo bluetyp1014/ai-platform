@@ -1,30 +1,37 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
-import { useAuthStore } from "@/stores/authStore";
+import { appPath } from "@/lib/navigation";
+import { useAuthStore, waitForAuthHydration } from "@/stores/authStore";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const accessToken = useAuthStore((s) => s.accessToken);
-  const hasHydrated = useAuthStore((s) => s._hasHydrated);
-  const sessionReady = useAuthStore((s) => s._sessionReady);
-  const restoreSession = useAuthStore((s) => s.restoreSession);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
-    if (hasHydrated && !sessionReady) {
-      void restoreSession();
-    }
-  }, [hasHydrated, sessionReady, restoreSession]);
+    let cancelled = false;
 
-  useEffect(() => {
-    if (sessionReady && !accessToken) {
-      router.replace("/login");
-    }
-  }, [sessionReady, accessToken, router]);
+    async function bootstrapAuth() {
+      await waitForAuthHydration();
+      const authenticated = await useAuthStore.getState().restoreSession();
 
-  if (!hasHydrated || !sessionReady) {
+      if (cancelled) return;
+      if (!authenticated || !useAuthStore.getState().accessToken) {
+        window.location.replace(appPath("/login"));
+        return;
+      }
+
+      setAuthReady(true);
+    }
+
+    void bootstrapAuth();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!authReady) {
     return (
       <div className="min-h-screen bg-[#0f172a] text-slate-400 flex items-center justify-center">
         Loading…

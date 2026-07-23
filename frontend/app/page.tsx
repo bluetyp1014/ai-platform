@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
 import { MarkdownMessage } from "@/components/MarkdownMessage";
 import { apiFetch } from "@/lib/api";
+import { appPath } from "@/lib/navigation";
 import { useAuthStore } from "@/stores/authStore";
 
 import { DemoClosedView } from "../components/DemoClosedView";
@@ -110,7 +111,7 @@ function ChatApp() {
   }, []);
 
   const loadDemoStatus = useCallback(async () => {
-    const res = await fetch("/api/admin/demo-status", {
+    const res = await apiFetch("/admin/demo-status", {
       credentials: "include",
       headers: useAuthStore.getState().accessToken
         ? {
@@ -132,6 +133,10 @@ function ChatApp() {
     let cancelled = false;
 
     async function bootstrap() {
+      setBootstrapping(true);
+      setConversationId(null);
+      setMessages([]);
+
       try {
         const status = await loadDemoStatus();
         if (cancelled) return;
@@ -155,9 +160,6 @@ function ChatApp() {
       }
     }
 
-    setBootstrapping(true);
-    setConversationId(null);
-    setMessages([]);
     bootstrap();
     return () => {
       cancelled = true;
@@ -198,7 +200,7 @@ function ChatApp() {
 
   async function handleLogout() {
     await clearAuth();
-    window.location.href = "/login";
+    window.location.href = appPath("/login");
   }
 
   async function handleCloseDemo() {
@@ -228,7 +230,7 @@ function ChatApp() {
 
       if (nextClosedState) {
         await clearAuth();
-        window.location.href = "/login";
+        window.location.href = appPath("/login");
       }
     } catch (err) {
       console.error(err);

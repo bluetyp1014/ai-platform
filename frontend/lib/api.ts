@@ -1,4 +1,5 @@
 import { API_BASE } from "@/lib/constants";
+import { appRoutePath, redirectToAppPath } from "@/lib/navigation";
 import { useAuthStore } from "@/stores/authStore";
 
 export { API_BASE };
@@ -42,9 +43,9 @@ async function doFetch(path: string, init?: RequestInit): Promise<Response> {
 function handleUnauthorized(): never {
   useAuthStore.getState().clearAuth();
   if (typeof window !== "undefined") {
-    const path = window.location.pathname;
+    const path = appRoutePath(window.location.pathname);
     if (path !== "/login" && path !== "/register") {
-      window.location.replace("/login");
+      redirectToAppPath("/login");
     }
   }
   throw new Error("Unauthorized");

@@ -4,6 +4,7 @@ import { persist } from "zustand/middleware";
 import { API_BASE, AUTH_STORAGE_KEY } from "@/lib/constants";
 
 const SESSION_RESTORE_TIMEOUT_MS = 8000;
+const HYDRATION_TIMEOUT_MS = 1000;
 
 export type AccessTokenResponse = {
   access_token: string;
@@ -54,7 +55,7 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       accessToken: null,
       username: null,
-      _hasHydrated: true,
+      _hasHydrated: false,
       _sessionReady: false,
       setAccessToken: (accessToken, username) =>
         set({
@@ -62,6 +63,7 @@ export const useAuthStore = create<AuthState>()(
           ...(username !== undefined ? { username } : {}),
         }),
       clearAuth: async () => {
+        set({ accessToken: null, username: null, _sessionReady: true });
         try {
           await fetch(`${API_BASE}/auth/logout`, {
             ...authFetchInit,
@@ -70,7 +72,6 @@ export const useAuthStore = create<AuthState>()(
         } catch {
           // Best-effort logout; still clear local session.
         }
-        set({ accessToken: null, username: null, _sessionReady: true });
       },
       setHasHydrated: (value) => set({ _hasHydrated: value }),
       refreshAccessToken: async () => {
@@ -79,6 +80,7 @@ export const useAuthStore = create<AuthState>()(
           set({ accessToken: data.access_token, _sessionReady: true });
           return true;
         } catch {
+          set({ accessToken: null, username: null, _sessionReady: true });
           return false;
         }
       },
@@ -139,8 +141,33 @@ export const useAuthStore = create<AuthState>()(
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
-        void state?.restoreSession();
       },
     }
   )
 );
+
+export function waitForAuthHydration(): Promise<void> {
+  if (useAuthStore.persist.hasHydrated()) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      unsubscribe();
+      resolve();
+    };
+    const unsubscribe = useAuthStore.persist.onFinishHydration(() => {
+      finish();
+    });
+    const timeoutId = setTimeout(finish, HYDRATION_TIMEOUT_MS);
+
+    // Hydration may finish between the first check and the subscription.
+    if (useAuthStore.persist.hasHydrated()) {
+      finish();
+    }
+  });
+}

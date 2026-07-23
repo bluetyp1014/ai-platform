@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
+import { appPath } from "@/lib/navigation";
 
-import { API_BASE } from "@/lib/constants";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore, waitForAuthHydration } from "@/stores/authStore";
 
 import { DemoClosedView } from "./DemoClosedView";
 
@@ -14,13 +14,9 @@ type AuthFormProps = {
 };
 
 export function AuthForm({ mode }: AuthFormProps) {
-  const router = useRouter();
   const login = useAuthStore((s) => s.login);
   const register = useAuthStore((s) => s.register);
   const accessToken = useAuthStore((s) => s.accessToken);
-  const hasHydrated = useAuthStore((s) => s._hasHydrated);
-  const sessionReady = useAuthStore((s) => s._sessionReady);
-  const restoreSession = useAuthStore((s) => s.restoreSession);
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -29,21 +25,38 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [demoClosed, setDemoClosed] = useState(false);
   const [demoStatusReady, setDemoStatusReady] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
 
   const isLogin = mode === "login";
 
   useEffect(() => {
-    if (hasHydrated && !sessionReady) {
-      void restoreSession();
+    let cancelled = false;
+
+    async function bootstrapAuth() {
+      await waitForAuthHydration();
+      await useAuthStore.getState().restoreSession();
+
+      if (cancelled) return;
+      if (useAuthStore.getState().accessToken) {
+        window.location.replace(appPath("/"));
+        return;
+      }
+
+      setAuthReady(true);
     }
-  }, [hasHydrated, sessionReady, restoreSession]);
+
+    void bootstrapAuth();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadDemoStatus() {
       try {
-        const res = await fetch(`${API_BASE}/admin/demo-status`, {
+        const res = await apiFetch(`/admin/demo-status`, {
           credentials: "include",
         });
         if (!res.ok) {
@@ -70,13 +83,7 @@ export function AuthForm({ mode }: AuthFormProps) {
     };
   }, []);
 
-  useEffect(() => {
-    if (sessionReady && accessToken) {
-      router.replace("/");
-    }
-  }, [sessionReady, accessToken, router]);
-
-  if (!hasHydrated || !sessionReady || !demoStatusReady) {
+  if (!authReady || !demoStatusReady) {
     return (
       <div className="min-h-screen bg-[#0f172a] text-slate-400 flex items-center justify-center">
         Loading…
@@ -119,7 +126,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       } else {
         await register(username.trim(), password);
       }
-      router.replace("/");
+      window.location.replace(appPath("/"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -211,14 +218,14 @@ export function AuthForm({ mode }: AuthFormProps) {
           {isLogin ? (
             <>
               No account?{" "}
-              <Link href="/register" className="text-indigo-400 hover:underline">
+              <Link href={appPath("/register")} className="text-indigo-400 hover:underline">
                 Register
               </Link>
             </>
           ) : (
             <>
               Already have an account?{" "}
-              <Link href="/login" className="text-indigo-400 hover:underline">
+              <Link href={appPath("/login")} className="text-indigo-400 hover:underline">
                 Sign in
               </Link>
             </>
